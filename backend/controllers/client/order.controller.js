@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Order from "../../models/order.model.js";
 import Cart from "../../models/cart.model.js";
 import Tag from "../../models/tag.model.js";
@@ -47,8 +48,17 @@ export const add = async (req, res) => {
       cart,
       voucher = [],
       shippingCost = 0,
+      address, // Extract address from request body
       ...orderData
     } = req.body;
+
+    // Validate that address is a valid ObjectId
+    if (address && !mongoose.Types.ObjectId.isValid(address)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid address ID format. Must be a valid ObjectId.",
+      });
+    }
 
     // Tạo hoặc cập nhật giỏ hàng và lấy giỏ hàng mới
     const newCart = await createOrUpdateCart(userId, cart);
@@ -76,6 +86,11 @@ export const add = async (req, res) => {
     orderData.userId = userId;
     orderData.voucher = voucher;
 
+    // Add address if it exists and is valid
+    if (address) {
+      orderData.address = address;
+    }
+
     // Tạo đơn hàng mới và lưu vào cơ sở dữ liệu
     const newOrder = new Order(orderData);
     await newOrder.save();
@@ -92,7 +107,6 @@ export const add = async (req, res) => {
 
     // Tìm tag "popular" trong collection Tag
     const popularTag = await Tag.findOne({ tagName: "POPULAR" });
-
     if (!popularTag) {
       console.log('Tag "popular" không tồn tại');
       return res

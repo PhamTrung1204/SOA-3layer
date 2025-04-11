@@ -15,7 +15,6 @@ import {
 import {
   useReadOwnCart,
   useReadAllVouchers,
-  useReadOwnAddresses,
   useCreateNewOrder,
 } from "../../../api/queries";
 import { useAuthContext } from "../../../context/AuthContext";
@@ -23,27 +22,25 @@ import { useNavigate } from "react-router-dom";
 
 function CheckoutPage() {
   const navigate = useNavigate();
+  
   // Get the current user from context
   const { user: currentUser, isLoading: isUserLoading } = useAuthContext();
-
+  
   // Fetch cart, vouchers, and addresses data
   const { data: cartData, isLoading: isCartLoading } = useReadOwnCart(
     currentUser?._id
   );
-  const { data: vouchersData, isLoading: isVouchersLoading } =
-    useReadAllVouchers();
-  // const { data: addressesData, isLoading: isAddressesLoading } =
-  //   useReadOwnAddresses(currentUser?._id);
-
+  
+  const { data: vouchersData, isLoading: isVouchersLoading } = useReadAllVouchers();
+  
   // Mutation hook for creating a new order
-  const createNewOrder = useCreateNewOrder();
-  const { mutateAsync: create } = useCreateNewOrder();
-
+  const { mutateAsync: createOrder, isLoading: isOrderCreating } = useCreateNewOrder();
+  
   // Get current date and add 5 days
   const currentDateTime = new Date();
   const takeOrderTime = new Date(currentDateTime);
   takeOrderTime.setDate(takeOrderTime.getDate() + 5);
-
+  
   const [orderData, setOrderData] = useState({
     userId: "",
     paymentStatus: "unpaid",
@@ -52,49 +49,17 @@ function CheckoutPage() {
     orderNote: "",
     expectedReceiveTime: currentDateTime.toISOString().slice(0, 16),
     takeOrderTime: takeOrderTime.toISOString().slice(0, 16),
-    address: "", // Ensure this is set with a valid ObjectId
-    voucher: [],
+    address: "6711cc0dcdf8a1dcfcf38f88", // Giữ địa chỉ cứng như yêu cầu
+    voucher: [], // Đảm bảo luôn là một mảng
     cart: {
-      client: "",
-      cartItems: [],
+      cartItems: [] // Chỉ giữ spec và quantity
     },
   });
-
-  // Set user and client information when currentUser data is loaded
-  useEffect(() => {
-    if (currentUser && currentUser._id) {
-      setOrderData((prevData) => ({
-        ...prevData,
-        userId: currentUser._id,
-        cart: {
-          ...prevData.cart,
-          client: currentUser._id,
-        },
-      }));
-    }
-  }, [currentUser]);
-
-  // Set cart items when cartData is loaded
-  useEffect(() => {
-    if (cartData && cartData.cartItems) {
-      setOrderData((prevData) => ({
-        ...prevData,
-        cart: {
-          ...prevData.cart,
-          cartItems: cartData.cartItems.map((item) => ({
-            spec: item?.spec?._id,
-            productName: item?.spec?.products.productName,
-            price: item?.spec?.price,
-            quantity: item.quantity,
-          })),
-        },
-      }));
-    }
-  }, [cartData]);
-
+  
+  // Dữ liệu địa chỉ cứng (giữ nguyên như trong code gốc)
   const addressesData = [
     {
-      _id: "addr1",
+      _id: "6711cc0dcdf8a1dcfcf38f88",
       address: "123 Lê Lợi",
       ward: "Phường Bến Thành",
       district: "Quận 1",
@@ -108,124 +73,160 @@ function CheckoutPage() {
       city: "TP. Hồ Chí Minh",
     },
   ];
-  // const isAddressesLoading = false;
-
-  // Set default address if available
+  
+  // Set user information when currentUser data is loaded
   useEffect(() => {
-    setOrderData((prevData) => ({
-      ...prevData,
-      address: "6711cc0dcdf8a1dcfcf38f88",
-    }));
-  }, []);
-
-  console.log(addressesData);
-
+    if (currentUser && currentUser._id) {
+      setOrderData((prevData) => ({
+        ...prevData,
+        userId: currentUser._id,
+      }));
+    }
+  }, [currentUser]);
+  
+  // Set cart items when cartData is loaded - Chỉ lấy các trường cần thiết
+  useEffect(() => {
+    if (cartData && cartData.cartItems && cartData.cartItems.length > 0) {
+      setOrderData((prevData) => ({
+        ...prevData,
+        cart: {
+          cartItems: cartData.cartItems.map((item) => ({
+            spec: item?.spec?._id,
+            quantity: item.quantity,
+          })),
+        },
+      }));
+    }
+  }, [cartData]);
+  
   // Handle form field changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setOrderData((prevData) => ({ ...prevData, [name]: value }));
   };
-
+  
   // Handle changes within cart items
   const handleNestedChange = (e, index) => {
     const { name, value } = e.target;
-    const cartItems = [...orderData.cart.cartItems];
-    cartItems[index][name] = value;
-    setOrderData((prevData) => ({
-      ...prevData,
-      cart: { ...prevData.cart, cartItems },
-    }));
+    if (name === "quantity") {
+      const cartItems = [...orderData.cart.cartItems];
+      cartItems[index][name] = parseInt(value, 10); // Đảm bảo quantity là số
+      setOrderData((prevData) => ({
+        ...prevData,
+        cart: { cartItems },
+      }));
+    }
   };
-
-  // Handle adding voucher to order
+  
+  // Handle adding voucher to order - Đảm bảo voucher luôn là mảng
   const handleAddVoucher = (e) => {
     const { value } = e.target;
     setOrderData((prevData) => ({
       ...prevData,
-      voucher: value,
+      voucher: Array.isArray(value) ? value : [],
     }));
   };
-
+  
   // Handle order submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validate address selection
-    if (!orderData.address) {
-      alert("Please select an address before submitting the order.");
+    
+    // Validate cart items
+    if (!orderData.cart.cartItems || orderData.cart.cartItems.length === 0) {
+      alert("Giỏ hàng của bạn đang trống.");
       return;
     }
-
-    // Call the mutation to create a new order
-    await createNewOrder.mutateAsync(orderData, {
-      onSuccess: () => {
-        console.log("Order created successfully");
-        // Optionally, navigate to a different page or reset form here
-      },
-      onError: (error) => {
-        console.error("Error creating order:", error);
-      },
-    });
-    // create(orderData)
-    navigate("/");
+    
+    try {
+      console.log("Đang gửi đơn hàng:", orderData);
+      // Tạo bản sao của đơn hàng để gửi đi
+      const orderPayload = {
+        ...orderData,
+        expectedReceiveTime: new Date(orderData.expectedReceiveTime).toISOString(),
+        takeOrderTime: new Date(orderData.takeOrderTime).toISOString(),
+      };
+      
+      // Gọi API để tạo đơn hàng mới
+      await createOrder(orderPayload);
+      alert("Đặt hàng thành công!");
+      navigate("/");
+    } catch (error) {
+      console.error("Lỗi khi tạo đơn hàng:", error);
+      alert(`Đặt hàng thất bại: ${error.message || "Vui lòng thử lại sau"}`);
+    }
   };
-
+  
   // Show loading while data is being fetched
   if (isUserLoading || isCartLoading || isVouchersLoading) {
-    return <Typography>Loading data...</Typography>;
+    return <Typography>Đang tải dữ liệu...</Typography>;
   }
-
+  
+  // Handle case when cart is empty
+  if (!cartData || !cartData.cartItems || cartData.cartItems.length === 0) {
+    return (
+      <Container maxWidth="md">
+        <Paper elevation={3} sx={{ padding: 3, textAlign: "center" }}>
+          <Typography variant="h5" gutterBottom>
+            Giỏ hàng của bạn đang trống
+          </Typography>
+          <Button variant="contained" onClick={() => navigate("/products")}>
+            Tiếp tục mua sắm
+          </Button>
+        </Paper>
+      </Container>
+    );
+  }
+  
   return (
     <Container maxWidth="md">
       <Paper elevation={3} sx={{ padding: 3 }}>
         <Typography variant="h4" gutterBottom>
-          Order Form
+          Đơn đặt hàng
         </Typography>
         <Box component="form" onSubmit={handleSubmit}>
           <TextField
             fullWidth
-            label="User ID"
+            label="ID Người dùng"
             name="userId"
             value={orderData.userId}
             margin="normal"
             disabled
           />
           <FormControl fullWidth margin="normal">
-            <InputLabel>Payment Status</InputLabel>
+            <InputLabel>Trạng thái thanh toán</InputLabel>
             <Select
               name="paymentStatus"
               value={orderData.paymentStatus}
               onChange={handleChange}
             >
-              <MenuItem value="unpaid">Unpaid</MenuItem>
-              <MenuItem value="paid">Paid</MenuItem>
+              <MenuItem value="unpaid">Chưa thanh toán</MenuItem>
+              <MenuItem value="paid">Đã thanh toán</MenuItem>
             </Select>
           </FormControl>
           <FormControl fullWidth margin="normal">
-            <InputLabel>Payment Method</InputLabel>
+            <InputLabel>Phương thức thanh toán</InputLabel>
             <Select
               name="paymentMethod"
               value={orderData.paymentMethod}
               onChange={handleChange}
             >
-              <MenuItem value="credit_card">Credit Card</MenuItem>
+              <MenuItem value="credit_card">Thẻ tín dụng</MenuItem>
               <MenuItem value="paypal">Paypal</MenuItem>
-              <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
+              <MenuItem value="bank_transfer">Chuyển khoản ngân hàng</MenuItem>
             </Select>
           </FormControl>
           <TextField
             fullWidth
             type="number"
-            label="Shipping Cost"
+            label="Phí vận chuyển"
             name="shippingCost"
             value={orderData.shippingCost}
             onChange={handleChange}
             margin="normal"
-            disabled
           />
           <TextField
             fullWidth
-            label="Order Note"
+            label="Ghi chú đơn hàng"
             name="orderNote"
             value={orderData.orderNote}
             onChange={handleChange}
@@ -236,7 +237,7 @@ function CheckoutPage() {
           <TextField
             fullWidth
             type="datetime-local"
-            label="Expected Receive Time"
+            label="Thời gian nhận dự kiến"
             name="expectedReceiveTime"
             value={orderData.expectedReceiveTime}
             onChange={handleChange}
@@ -248,7 +249,7 @@ function CheckoutPage() {
           <TextField
             fullWidth
             type="datetime-local"
-            label="Take Order Time"
+            label="Thời gian nhận đơn"
             name="takeOrderTime"
             value={orderData.takeOrderTime}
             onChange={handleChange}
@@ -258,13 +259,13 @@ function CheckoutPage() {
             }}
           />
           <FormControl fullWidth margin="normal">
-            <InputLabel>Address</InputLabel>
+            <InputLabel>Địa chỉ</InputLabel>
             <Select
               name="address"
               value={orderData.address}
               onChange={handleChange}
             >
-              {addressesData?.map((address) => (
+              {addressesData.map((address) => (
                 <MenuItem key={address._id} value={address._id}>
                   {`${address.address}, ${address.ward}, ${address.district}, ${address.city}`}
                 </MenuItem>
@@ -288,25 +289,23 @@ function CheckoutPage() {
                   .join(", ")
               }
             >
-              {vouchersData.map((voucher) => (
+              {vouchersData && vouchersData.map((voucher) => (
                 <MenuItem key={voucher._id} value={voucher._id}>
-                  {voucher.voucherName} - {voucher.discountPercentage}% off
+                  {voucher.voucherName} - {voucher.discountPercentage}% giảm
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
-
           <Typography variant="h6" gutterBottom mt={2}>
-            Cart Items
+            Các mặt hàng trong giỏ
           </Typography>
-          {orderData.cart.cartItems.map((item, index) => (
+          {cartData.cartItems.map((item, index) => (
             <Grid container spacing={2} key={index}>
               <Grid item xs={6}>
                 <TextField
                   fullWidth
-                  label="Product Name"
-                  name="productName"
-                  value={item.productName}
+                  label="Tên sản phẩm"
+                  value={item?.spec?.products?.productName || ""}
                   margin="normal"
                   disabled
                 />
@@ -315,19 +314,19 @@ function CheckoutPage() {
                 <TextField
                   fullWidth
                   type="number"
-                  label="Quantity"
+                  label="Số lượng"
                   name="quantity"
-                  value={item.quantity}
+                  value={orderData.cart.cartItems[index]?.quantity || item.quantity}
                   onChange={(e) => handleNestedChange(e, index)}
                   margin="normal"
+                  inputProps={{ min: 1 }}
                 />
               </Grid>
               <Grid item xs={3}>
                 <TextField
                   fullWidth
-                  label="Price"
-                  name="price"
-                  value={item.price}
+                  label="Giá"
+                  value={item?.spec?.price || 0}
                   margin="normal"
                   disabled
                 />
@@ -335,8 +334,13 @@ function CheckoutPage() {
             </Grid>
           ))}
           <Box mt={4}>
-            <Button type="submit" variant="contained" color="primary">
-              Submit Order
+            <Button 
+              type="submit" 
+              variant="contained" 
+              color="primary"
+              disabled={isOrderCreating}
+            >
+              {isOrderCreating ? "Đang xử lý..." : "Đặt hàng"}
             </Button>
           </Box>
         </Box>
