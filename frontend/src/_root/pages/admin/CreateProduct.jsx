@@ -542,7 +542,7 @@ function CreateProduct() {
             </CssVarsProvider>
           </Box>
         </Grid2>
-        <Grid2 size={{ xs: 12, md: 0 }} display={{ xs: 'block', md: 'none' }}>
+        <Grid2 size={{ xs: 12, md: 12 }} display={{ xs: 'block', md: 'flex' }}>
           <PageToolbar {...{
             handleSaveDraft: !initProductId && (async () => handleSave(true)), handleSave: async () => handleSave(),
             handleDelete: initProductId ? async () => { await deleteProduct(initProductId); navigate(-1); } : () => navigate(-1),
