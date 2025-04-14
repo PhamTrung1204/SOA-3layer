@@ -2,18 +2,8 @@ import { Router } from "express";
 import * as controller from "../../controllers/admin/product.controller.js";
 import multer from "multer";
 import uploadToDrive from "../../middleware/uploadToDrive.js";
-import path from "path";
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "/tmp"); // Dùng thư mục tạm thay vì /var/task/uploads
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({ storage });
+// Cấu hình multer để lưu file tạm
+const upload = multer({ dest: "uploads/" }); // Thư mục lưu trữ ảnh tạm
 
 const router = Router();
 
