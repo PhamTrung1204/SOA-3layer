@@ -2,9 +2,18 @@ import { Router } from "express";
 import carouselController from "../../controllers/admin/carosel.controller.js";
 import multer from "multer";
 import uploadToDrive from "../../middleware/uploadToDrive.js";
+import path from "path";
 
-// Cấu hình multer để lưu file tạm
-const upload = multer({ dest: "uploads/" }); // Thư mục lưu trữ ảnh tạm
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "/tmp"); // Dùng thư mục tạm thay vì /var/task/uploads
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage });
 
 const carouselRouter = Router();
 
