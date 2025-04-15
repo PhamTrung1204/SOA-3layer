@@ -31,14 +31,19 @@ export const STATUS_TYPES = {
   },
 };
 
-const StyledChip = styled(Chip)(({ theme, color }) => ({
-  justifyContent: 'left',
-  color: (theme.vars || theme).palette[color].dark,
-  border: `1px solid ${(theme.vars || theme).palette[color].main}`,
-  '& .icon': {
-    color: 'inherit',
-  },
-}));
+const StyledChip = styled(Chip)(({ theme, color = 'primary' }) => {
+  const paletteColor = (theme.vars || theme).palette[color] || theme.palette.primary;
+
+  return {
+    justifyContent: 'left',
+    color: paletteColor.dark,
+    border: `1px solid ${paletteColor.main}`,
+    '& .icon': {
+      color: 'inherit',
+    },
+  };
+});
+
 
 const Status = ({ status, options = STATUS_TYPES }) => {
   const statusConfig = options[status] || {};
